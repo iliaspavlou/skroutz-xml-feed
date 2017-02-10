@@ -97,6 +97,107 @@ class xml extends \xd_v141226_dev\xml {
 	 */
 	protected $productElemName = 'product';
 
+
+	/**
+	 * @param $sliceNumber
+	 * @param $sliceData
+	 *
+	 * @return bool|mixed
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function saveSlice($sliceNumber = 0, $sliceData = array()) {
+		$fileName = "skroutz-slice-$sliceNumber.json";
+			$dir = dirname( $this->getFileLocation() );
+
+			$fileLocation = $dir . '/' . $fileName;
+
+			if ( ! file_exists( $dir ) ) {
+					mkdir( $dir, 0755, true );
+			}
+
+			if ( ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
+					if ( is_file( $fileLocation ) ) {
+							unlink( $fileLocation );
+					}
+
+
+					return file_put_contents($fileLocation, json_encode($sliceData));
+			}
+
+			return false;
+	}
+
+	/**
+	 * @param $sliceNumber
+	 *
+	 * @return bool
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function checkSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.json";
+			$dir = dirname( $this->getFileLocation() );
+
+			$fileLocation = $dir . '/' . $fileName;
+
+			if ( is_file( $fileLocation ) ) {
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+
+	}
+
+	/**
+	 * @param $sliceNumber
+	 *
+	 * @return bool|mixed
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function getSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.json";
+			$dir = dirname( $this->getFileLocation() );
+
+			$fileLocation = $dir . '/' . $fileName;
+
+			if ( is_file( $fileLocation ) ) {
+					return json_decode(file_get_contents($fileLocation));
+			}
+
+			return false;
+	}
+
+	/**
+	 * @param $sliceNumber
+	 *
+	 * @return bool
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function deleteSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.json";
+			$dir = dirname( $this->getFileLocation() );
+
+			$fileLocation = $dir . '/' . $fileName;
+
+			if ( ! file_exists( $dir ) ) {
+					mkdir( $dir, 0755, true );
+			}
+
+			if ( ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
+					if ( is_file( $fileLocation ) ) {
+							unlink( $fileLocation );
+							return true;
+					}
+			}
+
+			return false;
+	}
+
 	/**
 	 * @param array $array
 	 *
@@ -486,4 +587,4 @@ class xml extends \xd_v141226_dev\xml {
 
 		return false;
 	}
-} 
+}

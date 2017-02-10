@@ -614,7 +614,7 @@ class skroutz extends framework {
             $createdTime      = strtotime( $xmlCreation[ $this->©xml->createdAtName ]['value'] );
             $nextCreationTime = $interval + $createdTime;
             $time             = time();
-            if ( $time > $nextCreationTime ) {
+            if ( $time > $nextCreationTime OR TRUE) {
                 $this->do_your_woo_stuff();
             }
         }
@@ -654,88 +654,136 @@ class skroutz extends framework {
      * @since  150130
      */
     public function processProducts() {
-        $prodArray = (array) $this->©db->get_col( 'SELECT ID FROM ' . $this->©db->posts . ' WHERE post_type="product" AND post_status="publish"' );
 
-        $this->©env->maximize_time_memory_limits();
+        $prodCount = $this->©db->get_var('SELECT COUNT(*) FROM '.$this->©db->posts.' WHERE post_type="product" AND post_status="publish"');
 
-        $mem = $this->getMemInM( ini_get( 'memory_limit' ) ) / 1024 / 1024;
+        // later get from option how many products per slice
+        //$productsPerSlice = $this->©option->get('products_per_slice');
+        $productsPerSlice = 500;
 
-        $memLimit = ( $mem - 10 ) * 1024 * 1024;
+        // how many slices (pieces) the products will be divided
+        $slices = ceil($prodCount/$productsPerSlice);
 
-        $exCategories = $this->©option->get('ex_cats');
-        $exTags = $this->©option->get('ex_tags');
+        // variable to check if we should save the XML file
+        $saveXML = true;
 
-        foreach ( $prodArray as $i => $pid ) {
+        // array which holds the products
+        $products = array();
 
-            if ( memory_get_usage() > $memLimit ) {
+
+        // iterates though slices
+        for ($slice = 0; $slice < $slices; $slice++)
+        {
+            // check if product slice cache exists else skip
+            if (! $this->©xml->checkSlice($slice))
+            {
+                $saveXML = false; // means we haven't finished the json generation files
+
+                $prodArray = (array) $this->©db->get_col( 'SELECT ID FROM ' . $this->©db->posts . ' WHERE post_type="product" AND post_status="publish" LIMIT '. round((int)$slice*$prodCount/$slices) .','. round((int)$prodCount/$slices));
+
+                $this->©env->maximize_time_memory_limits();
+
+                $mem = $this->getMemInM( ini_get( 'memory_limit' ) ) / 1024 / 1024;
+
+                $memLimit = ( $mem - 10 ) * 1024 * 1024;
+
+                $exCategories = $this->©option->get('ex_cats');
+                $exTags = $this->©option->get('ex_tags');
+
+                foreach ( $prodArray as $i => $pid ) {
+
+                    if ( memory_get_usage() > $memLimit ) {
+                        wp_cache_flush();
+                    }
+
+                    $product = WC()->product_factory->get_product( (int) $pid );
+
+                    if ( ! is_object( $product ) || ! ( $product instanceof \WC_Product ) ) {
+                        $this->©error->forceDBLog( 'product', $product, 'Product failed in ' . __METHOD__ );
+                        continue;
+                    }
+
+                    if ( ! $product->is_purchasable() || ! $product->is_visible() || $this->getAvailabilityString( $product ) === false ) {
+                        $reason = array();
+                        if ( ! $product->is_purchasable() ) {
+                            $reason[] = 'product is not purchasable';
+                        }
+                        if ( ! $product->is_visible() ) {
+                            $reason[] = 'product is not visible';
+                        }
+                        if ( $this->getAvailabilityString( $product ) === false ) {
+                            $reason[] = 'product is unavailable';
+                        }
+                        $this->©message->forceDBLog(
+                            'product',
+                            array(
+                                'id'             => $product->id,
+                                'SKU'            => $product->get_sku(),
+                                'is_purchasable' => $product->is_purchasable(),
+                                'is_visible'     => $product->is_visible(),
+                                'availability'   => $this->getAvailabilityString( $product )
+                            ),
+                            'Product <strong>' . $product->get_formatted_name() . '</strong> failed. Reason(s) is(are): ' . implode( ', ',
+                                $reason )
+                        );
+                        continue;
+                    }
+
+                    // check if product is an excluded category
+                    if ( $exCategories ) {
+                        $pCats = get_the_terms( $product->id, 'product_cat' );
+                        if ( $pCats ) {
+                            $pCats = wp_list_pluck( $pCats, 'term_id' );
+                            foreach ( $pCats as $pCat ) {
+                                if ( in_array( $pCat, $exCategories ) ) {
+                                    continue 2;
+                                }
+                            }
+                        }
+                    }
+
+                    // check if product has an excluded tag
+                    if ( $exTags ) {
+                        $pTags = get_the_terms( $product->id, 'product_tag' );
+                        if ( $pTags ) {
+                            $pTags = wp_list_pluck( $pTags, 'term_id' );
+                            foreach ( $pTags as $pTag ) {
+                                if ( in_array( $pTag, $exTags ) ) {
+                                    continue 2;
+                                }
+                            }
+                        }
+                    }
+
+                    $products[] = $this->getProductArray( $product );
+
+                } // endfor products
+
                 wp_cache_flush();
-            }
+                $this->©xml->saveSlice($slice, $products);
+                return 0;
 
-            $product = WC()->product_factory->get_product( (int) $pid );
+            } // endif slice check
 
-            if ( ! is_object( $product ) || ! ( $product instanceof \WC_Product ) ) {
-                $this->©error->forceDBLog( 'product', $product, 'Product failed in ' . __METHOD__ );
-                continue;
-            }
+        } // endfor slices
 
-            if ( ! $product->is_purchasable() || ! $product->is_visible() || $this->getAvailabilityString( $product ) === false ) {
-                $reason = array();
-                if ( ! $product->is_purchasable() ) {
-                    $reason[] = 'product is not purchasable';
-                }
-                if ( ! $product->is_visible() ) {
-                    $reason[] = 'product is not visible';
-                }
-                if ( $this->getAvailabilityString( $product ) === false ) {
-                    $reason[] = 'product is unavailable';
-                }
-                $this->©message->forceDBLog(
-                    'product',
-                    array(
-                        'id'             => $product->id,
-                        'SKU'            => $product->get_sku(),
-                        'is_purchasable' => $product->is_purchasable(),
-                        'is_visible'     => $product->is_visible(),
-                        'availability'   => $this->getAvailabilityString( $product )
-                    ),
-                    'Product <strong>' . $product->get_formatted_name() . '</strong> failed. Reason(s) is(are): ' . implode( ', ',
-                        $reason )
-                );
-                continue;
-            }
+        if ($saveXML)
+        {
+            // iterates though slices
+            for ($slice = 0; $slice < $slices; $slice++)
+            {
+                $products = $this->©xml->getSlice($slice);
 
-            // check if product is an excluded category
-            if ( $exCategories ) {
-                $pCats = get_the_terms( $product->id, 'product_cat' );
-                if ( $pCats ) {
-                    $pCats = wp_list_pluck( $pCats, 'term_id' );
-                    foreach ( $pCats as $pCat ) {
-                        if ( in_array( $pCat, $exCategories ) ) {
-                            continue 2;
-                        }
-                    }
+                //print_r($products);
+                // delete slice
+                $this->©xml->deleteSlice($slice);
+
+                foreach ($products as $product) {
+                    $this->©xml->appendProduct((array)$product);
                 }
             }
-
-            // check if product has an excluded tag
-            if ( $exTags ) {
-                $pTags = get_the_terms( $product->id, 'product_tag' );
-                if ( $pTags ) {
-                    $pTags = wp_list_pluck( $pTags, 'term_id' );
-                    foreach ( $pTags as $pTag ) {
-                        if ( in_array( $pTag, $exTags ) ) {
-                            continue 2;
-                        }
-                    }
-                }
-            }
-
-
-            $this->©xml->appendProduct( $this->getProductArray( $product ) );
+            return $this->©xml->saveXML() ? $this->©xml->countProductsInFile($this->©xml->simpleXML) : 0;
         }
-        wp_cache_flush();
-
-        return $this->©xml->saveXML() ? $this->©xml->countProductsInFile( $this->©xml->simpleXML ) : 0;
     }
 
     /**
