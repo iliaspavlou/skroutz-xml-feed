@@ -667,17 +667,14 @@ class skroutz extends framework {
         // variable to check if we should save the XML file
         $saveXML = true;
 
-        // array which holds the products
-        $products = array();
-
 
         // iterates though slices
         for ($slice = 0; $slice < $slices; $slice++)
         {
             // check if product slice cache exists else skip
-            if (! $this->©xml->checkSlice($slice))
+            if (! $this->©xml->checkXMLSlice($slice))
             {
-                $saveXML = false; // means we haven't finished the json generation files
+                $saveXML = false; // means we haven't finished the generation files
 
                 $prodArray = (array) $this->©db->get_col( 'SELECT ID FROM ' . $this->©db->posts . ' WHERE post_type="product" AND post_status="publish" LIMIT '. round((int)$slice*$prodCount/$slices) .','. round((int)$prodCount/$slices));
 
@@ -754,13 +751,12 @@ class skroutz extends framework {
                             }
                         }
                     }
-
-                    $products[] = $this->getProductArray( $product );
+                    $this->©xml->appendProductInSlice( $this->getProductArray( $product ) );
 
                 } // endfor products
 
                 wp_cache_flush();
-                $this->©xml->saveSlice($slice, $products);
+                $this->©xml->saveXMLSlice($slice);
                 return 0;
 
             } // endif slice check
@@ -772,15 +768,11 @@ class skroutz extends framework {
             // iterates though slices
             for ($slice = 0; $slice < $slices; $slice++)
             {
-                $products = $this->©xml->getSlice($slice);
+                $this->©xml->appendXMLSlice($slice);
 
-                //print_r($products);
                 // delete slice
-                $this->©xml->deleteSlice($slice);
+                $this->©xml->deleteXMLSlice($slice);
 
-                foreach ($products as $product) {
-                    $this->©xml->appendProduct((array)$product);
-                }
             }
             return $this->©xml->saveXML() ? $this->©xml->countProductsInFile($this->©xml->simpleXML) : 0;
         }

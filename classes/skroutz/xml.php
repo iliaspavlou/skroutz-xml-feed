@@ -97,35 +97,36 @@ class xml extends \xd_v141226_dev\xml {
 	 */
 	protected $productElemName = 'product';
 
-
 	/**
 	 * @param $sliceNumber
-	 * @param $sliceData
 	 *
 	 * @return bool|mixed
 	 * @author Nikos Papagiannopoulos
 	 * @since 160904
 	 */
-	public function saveSlice($sliceNumber = 0, $sliceData = array()) {
-		$fileName = "skroutz-slice-$sliceNumber.json";
-			$dir = dirname( $this->getFileLocation() );
+	public function saveXMLSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.xml";
+		$dir = dirname( $this->getFileLocation() );
 
-			$fileLocation = $dir . '/' . $fileName;
+		$fileLocation = $dir . '/' . $fileName;
 
-			if ( ! file_exists( $dir ) ) {
-					mkdir( $dir, 0755, true );
-			}
-
-			if ( ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
-					if ( is_file( $fileLocation ) ) {
-							unlink( $fileLocation );
-					}
-
-
-					return file_put_contents($fileLocation, json_encode($sliceData));
-			}
-
+		if ( ! ( $this->simpleXML instanceof \SimpleXMLExtended ) ) {
 			return false;
+		}
+
+		if ( ! file_exists( $dir ) ) {
+			mkdir( $dir, 0755, true );
+		}
+
+		if ( $this->simpleXML && ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
+			if ( is_file( $fileLocation ) ) {
+				unlink( $fileLocation );
+			}
+
+			return $this->simpleXML->asXML( $fileLocation );
+		}
+
+		return false;
 	}
 
 	/**
@@ -135,40 +136,79 @@ class xml extends \xd_v141226_dev\xml {
 	 * @author Nikos Papagiannopoulos
 	 * @since 160904
 	 */
-	public function checkSlice($sliceNumber = 0) {
-		$fileName = "skroutz-slice-$sliceNumber.json";
-			$dir = dirname( $this->getFileLocation() );
+	public function checkXMLSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.xml";
+		$dir = dirname( $this->getFileLocation() );
 
-			$fileLocation = $dir . '/' . $fileName;
+		$fileLocation = $dir . '/' . $fileName;
 
-			if ( is_file( $fileLocation ) ) {
-				return true;
-			}
-			else
+		if ( is_file( $fileLocation ) ) {
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	/**
+	 * @param $sliceNumber
+	 *
+	 * @return bool|mixed
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function getXMLSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.xml";
+		$dir = dirname( $this->getFileLocation() );
+
+		$fileLocation = $dir . '/' . $fileName;
+
+		if ( is_file( $fileLocation ) ) {
+				return file_get_contents($fileLocation);
+		}
+
+		return false;
+	}
+
+	/**
+	 * @param $sliceNumber
+	 *
+	 * @return bool|mixed
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function appendXMLSlice($sliceNumber = 0) {
+		if ( ! $this->simpleXML ) {
+			$this->initSimpleXML();
+		}
+
+		$fileName = "skroutz-slice-$sliceNumber.xml";
+		$dir = dirname( $this->getFileLocation() );
+
+		$fileLocation = $dir . '/' . $fileName;
+
+		if ( is_file( $fileLocation ) ) {
+
+			$slice = new \DOMDocument('1.0', 'UTF-8');
+
+			$slice->load($fileLocation);
+
+			$mergedXML = dom_import_simplexml($this->simpleXML)->ownerDocument;
+
+			$mergedXMLProducts = $mergedXML->getElementsByTagName( $this->productsElemWrapper )->item(0);
+			$products = $slice->getElementsByTagName( $this->productElemName );
+
+			for ($i = 0; $i < $products->length; $i++)
 			{
-				return false;
+				$product = $products->item($i);
+
+				$mergedXMLProducts->appendChild( $mergedXML->importNode( $product, true ) );
 			}
-
-	}
-
-	/**
-	 * @param $sliceNumber
-	 *
-	 * @return bool|mixed
-	 * @author Nikos Papagiannopoulos
-	 * @since 160904
-	 */
-	public function getSlice($sliceNumber = 0) {
-		$fileName = "skroutz-slice-$sliceNumber.json";
-			$dir = dirname( $this->getFileLocation() );
-
-			$fileLocation = $dir . '/' . $fileName;
-
-			if ( is_file( $fileLocation ) ) {
-					return json_decode(file_get_contents($fileLocation));
-			}
-
-			return false;
+			$this->simpleXML = simplexml_import_dom($mergedXML, 'SimpleXMLExtended');
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -178,24 +218,55 @@ class xml extends \xd_v141226_dev\xml {
 	 * @author Nikos Papagiannopoulos
 	 * @since 160904
 	 */
-	public function deleteSlice($sliceNumber = 0) {
-		$fileName = "skroutz-slice-$sliceNumber.json";
-			$dir = dirname( $this->getFileLocation() );
+	public function deleteXMLSlice($sliceNumber = 0) {
+		$fileName = "skroutz-slice-$sliceNumber.xml";
+		$dir = dirname( $this->getFileLocation() );
 
-			$fileLocation = $dir . '/' . $fileName;
+		$fileLocation = $dir . '/' . $fileName;
 
-			if ( ! file_exists( $dir ) ) {
-					mkdir( $dir, 0755, true );
+		if ( ! file_exists( $dir ) ) {
+				mkdir( $dir, 0755, true );
+		}
+
+		if ( ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
+				if ( is_file( $fileLocation ) ) {
+						unlink( $fileLocation );
+						return true;
+				}
+		}
+		return false;
+	}
+
+	/**
+	 * @param array $p
+	 *
+	 * @return int
+	 * @author Nikos Papagiannopoulos
+	 * @since 160904
+	 */
+	public function appendProductInSlice( Array $p ) {
+		if ( ! $this->simpleXML ) {
+			$this->initSimpleXML();
+		}
+
+		$validated = $this->validateArrayKeys( $p );
+
+		if ( ! empty( $validated ) ) {
+			$product = $this->simpleXML->addChild( $this->productElemName );
+
+			foreach ( $validated as $key => $value ) {
+				if ( $this->isValidXmlName( $value ) ) {
+					$product->addChild( $key, $value );
+				} else {
+					$product->$key = null;
+					$product->$key->addCData( $value );
+				}
 			}
 
-			if ( ! empty( $fileLocation ) && ( is_writable( $fileLocation ) || is_writable( $dir ) ) ) {
-					if ( is_file( $fileLocation ) ) {
-							unlink( $fileLocation );
-							return true;
-					}
-			}
+			return 1;
+		}
 
-			return false;
+		return 0;
 	}
 
 	/**
@@ -372,7 +443,6 @@ class xml extends \xd_v141226_dev\xml {
 		if ( ! file_exists( $dir ) ) {
 			mkdir( $dir, 0755, true );
 		}
-
 		if ( $this->simpleXML && ! empty( $this->fileLocation ) && ( is_writable( $this->fileLocation ) || is_writable( $dir ) ) ) {
 			if ( is_file( $this->fileLocation ) ) {
 				unlink( $this->fileLocation );
